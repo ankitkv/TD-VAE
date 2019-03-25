@@ -66,21 +66,6 @@ class Decoder(nn.Module):
 
 class TDVAE(nn.Module):
     """ The full TD-VAE model with jumpy prediction.
-
-    First, let's first go through some definitions which would help
-    understanding what is going on in the following code.
-
-    Belief: As the model is feed a sequence of observations, x_t, the
-      model updates its belief state, b_t, through a LSTM network. It
-      is a deterministic function of x_t. We call b_t the belief at
-      time t instead of belief state, becuase we call the hidden state z
-      state.
-
-    State: The latent state variable, z.
-
-    Observation: The observated variable, x. In this case, it represents
-      binarized MNIST images
-
     """
 
     def __init__(self, x_size, processed_x_size, b_size, z_size, layers=2):
@@ -120,11 +105,11 @@ class TDVAE(nn.Module):
 
     def forward(self, x, t1, t2):
         # pre-precess image x
-        processed_x = self.process_x(x)
+        processed_x = self.process_x(x)  # TODO make sure max x length is t2 + 1
 
         # aggregate the belief b  # XXX should each stochastic layer receive the entire b (all layers)?
         b = self.b_rnn(processed_x)  # size: bs, time, layers, dim
-        b1, b2 = b[:, t1], b[:, t2]  # sizes: bs, layers, dim
+        b1, b2 = b[:, t1], b[:, t2]  # sizes: bs, layers, dim  TODO element-wise indexing, needs batched times
 
         # q_B(z2 | b2)
         qb_z2_b2_mus, qb_z2_b2_logvars, qb_z2_b2s = [], [], []
@@ -145,7 +130,7 @@ class TDVAE(nn.Module):
 
         # q_S(z1 | z2, b1, b2) ~= q_S(z1 | z2, b1)
         qs_z1_z2_b1_mus, qs_z1_z2_b1_logvars, qs_z1_z2_b1s = [], [], []
-        for layer in range(self.layers - 1, -1, -1):  # TODO condition n
+        for layer in range(self.layers - 1, -1, -1):  # TODO optionally condition t2 - t1
             if layer == self.layers - 1:
                 qs_z1_z2_b1_mu, qs_z1_z2_b1_logvar = self.z_z_b(torch.cat([qb_z2_b2, b1[:, layer]], dim=1))
             else:
@@ -162,7 +147,7 @@ class TDVAE(nn.Module):
 
         # p_T(z2 | z1), also conditions on q_B(z2) from higher layer
         pt_z2_z1_mus, pt_z2_z1_logvars = [], []
-        for layer in range(self.layers - 1, -1, -1):  # TODO condition n
+        for layer in range(self.layers - 1, -1, -1):  # TODO optionally condition t2 - t1
             if layer == self.layers - 1:
                 pt_z2_z1_mu, pt_z2_z1_logvar = self.z_z(qs_z1_z2_b1)
             else:
@@ -175,7 +160,7 @@ class TDVAE(nn.Module):
 
         # p_B(z1 | b1)
         pb_z1_b1_mus, pb_z1_b1_logvars = [], []
-        for layer in range(self.layers - 1, -1, -1):  # TODO condition n
+        for layer in range(self.layers - 1, -1, -1):  # TODO optionally condition t2 - t1
             if layer == self.layers - 1:
                 pb_z1_b1_mu, pb_z1_b1_logvar = self.z_b(b1[:, layer])
             else:
@@ -192,48 +177,46 @@ class TDVAE(nn.Module):
         return (qs_z1_z2_b1_mu, qs_z1_z2_b1_logvar, pb_z1_b1_mu, pb_z1_b1_logvar, qb_z2_b2_mu, qb_z2_b2_logvar,
                 qb_z2_b2, pt_z2_z1_mu, pt_z2_z1_logvar, pd_x2_z2)
 
-    def rollout(self, x, t1, t2):  # TODO move to visualize
+    def rollout(self, x, t1, t2):  # TODO call from visualize
         # pre-precess image x
-        processed_x = self.process_x(x)
+        processed_x = self.process_x(x)  # TODO make sure max x length is t2 + 1
 
-        # aggregate the belief b
-        b = self.lstm(processed_x)[0]
+        # aggregate the belief b  # XXX should each stochastic layer receive the entire b (all layers)?
+        b = self.b_rnn(processed_x)[:, t1]  # size: bs, time, layers, dim
 
-        # at time t1-1, we sample a state z based on belief at time t1-1
-        l2_z_mu, l2_z_logsigma = self.z_b_l2(b[:, t1 - 1, :])
-        l2_z = ops.reparameterize_gaussian(l2_z_mu, l2_z_logsigma, False)
+        # compute z from b
+        p_z_bs = []
+        for layer in range(self.layers - 1, -1, -1):
+            if layer == self.layers - 1:
+                p_z_b_mu, p_z_b_logvar = self.z_b[layer](b[:, layer])
+            else:
+                p_z_b_mu, p_z_b_logvar = self.z_b[layer](torch.cat([b[:, layer], p_z_b], dim=1))
+            p_z_b = ops.reparameterize_gaussian(p_z_b_mu, p_z_b_logvar, False)
+            p_z_bs.insert(0, p_z_b)
 
-        l1_z_mu, l1_z_logsigma = self.z_b_l1(torch.cat((b[:, t1 - 1, :], l2_z), dim=-1))
-        l1_z = ops.reparameterize_gaussian(l1_z_mu, l1_z_logsigma, False)
-        current_z = torch.cat((l1_z, l2_z), dim=-1)
-
+        z = torch.cat(p_z_bs, dim=1)
         rollout_x = []
 
-        for _ in range(t2 - t1 + 1):
-            # predicting states after time t1 using state transition
-            next_l2_z_mu, next_l2_z_logsigma = self.l2_transition_z(current_z)
-            next_l2_z = ops.reparameterize_gaussian(next_l2_z_mu, next_l2_z_logsigma, False)
+        for _ in range(t2 - t1):
+            next_z = []
+            for layer in range(self.layers - 1, -1, -1):  # TODO optionally condition n
+                if layer == self.layers - 1:
+                    pt_z2_z1_mu, pt_z2_z1_logvar = self.z_z(z)
+                else:
+                    pt_z2_z1_mu, pt_z2_z1_logvar = self.z_z(torch.cat([z, pt_z2_z1], dim=1))
+                pt_z2_z1 = ops.reparameterize_gaussian(pt_z2_z1_mu, pt_z2_z1_logvar, False)
+                next_z.insert(0, pt_z2_z1)
 
-            next_l1_z_mu, next_l1_z_logsigma = self.l1_transition_z(torch.cat((current_z, next_l2_z), dim=-1))
-            next_l1_z = ops.reparameterize_gaussian(next_l1_z_mu, next_l1_z_logsigma, False)
+            z = torch.cat(next_z, dim=1)
+            rollout_x.append(self.x_z(z))
 
-            next_z = torch.cat((next_l1_z, next_l2_z), dim=-1)
-
-            # generate an observation x_t1 at time t1 based on sampled state z_t1
-            next_x = self.z_to_x(next_z)
-            rollout_x.append(next_x)
-
-            current_z = next_z
-
-        rollout_x = torch.stack(rollout_x, dim=1)
-
-        return rollout_x
+        return torch.stack(rollout_x, dim=1)
 
 
 class TDVAEModel(BaseTDVAE):
 
     def __init__(self, flags, *args, **kwargs):
-        super().__init__(TDVAE(), flags, *args, **kwargs)
+        super().__init__(TDVAE(), flags, *args, **kwargs)  # TODO init arguments
 
     def loss_function(self, forward_ret, labels=None):
         x2 = labels
