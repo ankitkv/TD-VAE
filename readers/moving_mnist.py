@@ -22,11 +22,13 @@ class MovingMNISTDataset(datasets.MNIST):
         if self.binarize:
             tmp = np.random.rand(28, 28) * 255
             image = tmp <= image
-        image = image.astype(np.float32)
-        image = np.roll(image, np.random.randint(28), 1)  # start with a random roll
+            image = image.astype(np.float32)
+        else:
+            image = image.astype(np.float32) / 255.0
 
         # randomly choose a direction and generate a sequence of images that move in the chosen direction
         direction = np.random.choice(2)
+        image = np.roll(image, np.random.randint(28), 1)  # start with a random roll
         image_list = [image.reshape(-1)]
         for _ in range(1, self.seq_len):
             if direction:
@@ -41,7 +43,7 @@ class MovingMNISTDataset(datasets.MNIST):
 
 class MovingMNISTReader(DatasetReader):
 
-    def __init__(self, data_path, seq_len=20, binarize=True):
+    def __init__(self, data_path, seq_len=20, binarize=False):
         train_dataset = MovingMNISTDataset(data_path, True, seq_len, binarize)
         test_dataset = MovingMNISTDataset(data_path, False, seq_len, binarize)
 
