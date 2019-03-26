@@ -236,4 +236,4 @@ class TDVAEModel(BaseTDVAE):
 
         loss = bce_diff + kl_div_qs_pb + sampled_kl_div_qb_pt
 
-        return loss, bce_diff, kl_div_qs_pb, sampled_kl_div_qb_pt
+        return loss, bce_diff, kl_div_qs_pb, sampled_kl_div_qb_pt, bce_optimal
