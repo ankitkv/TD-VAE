@@ -15,7 +15,8 @@ class TDVAERunner(MovingMNISTBaseRunner):
         t1 = np.random.randint(self.flags.seq_len - self.flags.t_diff_max, size=batch.shape[0])
         t2 = t1 + np.random.randint(self.flags.t_diff_min, self.flags.t_diff_max + 1, size=batch.shape[0])
         batch, t1, t2, x2 = self.model.prepare_batch([batch, t1, t2])
-        loss, bce_diff, kl_div_qs_pb, sampled_kl_div_qb_pt, bce_optimal = self.model.run_loss(batch, t1, t2, labels=x2)
+        loss, bce_diff, kl_div_qs_pb, sampled_kl_div_qb_pt, bce_optimal = self.model.run_loss([batch, t1, t2],
+                                                                                              labels=x2)
         if train:
             self.model.train(loss, clip_grad_norm=self.flags.grad_norm)
 

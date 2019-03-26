@@ -64,7 +64,7 @@ class TDVAE(nn.Module):
     """ The full TD-VAE model with jumpy prediction.
     """
 
-    def __init__(self, x_size, processed_x_size, b_size, z_size, layers=2):
+    def __init__(self, x_size, processed_x_size, b_size, z_size, layers):
         super().__init__()
         self.layers = layers
         x_size = x_size
@@ -102,8 +102,8 @@ class TDVAE(nn.Module):
         b = self.b_rnn(processed_x)  # size: bs, time, layers, dim
 
         # Element-wise indexing. sizes: bs, layers, dim
-        b1 = torch.gather(b, 1, t1[:, None, None].expand(-1, -1, b.size(2)))
-        b2 = torch.gather(b, 1, t2[:, None, None].expand(-1, -1, b.size(2)))
+        b1 = torch.gather(b, 1, t1[:, None, None, None].expand(-1, -1, b.size(2), b.size(3))).squeeze(1)
+        b2 = torch.gather(b, 1, t2[:, None, None, None].expand(-1, -1, b.size(2), b.size(3))).squeeze(1)
 
         # q_B(z2 | b2)
         qb_z2_b2_mus, qb_z2_b2_logvars, qb_z2_b2s = [], [], []
@@ -126,9 +126,10 @@ class TDVAE(nn.Module):
         qs_z1_z2_b1_mus, qs_z1_z2_b1_logvars, qs_z1_z2_b1s = [], [], []
         for layer in range(self.layers - 1, -1, -1):  # TODO optionally condition t2 - t1
             if layer == self.layers - 1:
-                qs_z1_z2_b1_mu, qs_z1_z2_b1_logvar = self.z_z_b(torch.cat([qb_z2_b2, b1[:, layer]], dim=1))
+                qs_z1_z2_b1_mu, qs_z1_z2_b1_logvar = self.z_z_b[layer](torch.cat([qb_z2_b2, b1[:, layer]], dim=1))
             else:
-                qs_z1_z2_b1_mu, qs_z1_z2_b1_logvar = self.z_z_b(torch.cat([qb_z2_b2, b1[:, layer], qs_z1_z2_b1], dim=1))
+                qs_z1_z2_b1_mu, qs_z1_z2_b1_logvar = self.z_z_b[layer](torch.cat([qb_z2_b2, b1[:, layer], qs_z1_z2_b1],
+                                                                                 dim=1))
             qs_z1_z2_b1_mus.insert(0, qs_z1_z2_b1_mu)
             qs_z1_z2_b1_logvars.insert(0, qs_z1_z2_b1_logvar)
 
@@ -143,9 +144,9 @@ class TDVAE(nn.Module):
         pt_z2_z1_mus, pt_z2_z1_logvars = [], []
         for layer in range(self.layers - 1, -1, -1):  # TODO optionally condition t2 - t1
             if layer == self.layers - 1:
-                pt_z2_z1_mu, pt_z2_z1_logvar = self.z_z(qs_z1_z2_b1)
+                pt_z2_z1_mu, pt_z2_z1_logvar = self.z_z[layer](qs_z1_z2_b1)
             else:
-                pt_z2_z1_mu, pt_z2_z1_logvar = self.z_z(torch.cat([qs_z1_z2_b1, qb_z2_b2s[layer + 1]], dim=1))
+                pt_z2_z1_mu, pt_z2_z1_logvar = self.z_z[layer](torch.cat([qs_z1_z2_b1, qb_z2_b2s[layer + 1]], dim=1))
             pt_z2_z1_mus.insert(0, pt_z2_z1_mu)
             pt_z2_z1_logvars.insert(0, pt_z2_z1_logvar)
 
@@ -156,9 +157,10 @@ class TDVAE(nn.Module):
         pb_z1_b1_mus, pb_z1_b1_logvars = [], []
         for layer in range(self.layers - 1, -1, -1):  # TODO optionally condition t2 - t1
             if layer == self.layers - 1:
-                pb_z1_b1_mu, pb_z1_b1_logvar = self.z_b(b1[:, layer])
+                pb_z1_b1_mu, pb_z1_b1_logvar = self.z_b[layer](b1[:, layer])
             else:
-                pb_z1_b1_mu, pb_z1_b1_logvar = self.z_b(torch.cat([b1[:, layer], qs_z1_z2_b1s[layer + 1]], dim=1))
+                pb_z1_b1_mu, pb_z1_b1_logvar = self.z_b[layer](torch.cat([b1[:, layer], qs_z1_z2_b1s[layer + 1]],
+                                                                         dim=1))
             pb_z1_b1_mus.insert(0, pb_z1_b1_mu)
             pb_z1_b1_logvars.insert(0, pb_z1_b1_logvar)
 
@@ -195,9 +197,9 @@ class TDVAE(nn.Module):
             next_z = []
             for layer in range(self.layers - 1, -1, -1):  # TODO optionally condition n
                 if layer == self.layers - 1:
-                    pt_z2_z1_mu, pt_z2_z1_logvar = self.z_z(z)
+                    pt_z2_z1_mu, pt_z2_z1_logvar = self.z_z[layer](z)
                 else:
-                    pt_z2_z1_mu, pt_z2_z1_logvar = self.z_z(torch.cat([z, pt_z2_z1], dim=1))
+                    pt_z2_z1_mu, pt_z2_z1_logvar = self.z_z[layer](torch.cat([z, pt_z2_z1], dim=1))
                 pt_z2_z1 = ops.reparameterize_gaussian(pt_z2_z1_mu, pt_z2_z1_logvar, False)
                 next_z.insert(0, pt_z2_z1)
 
