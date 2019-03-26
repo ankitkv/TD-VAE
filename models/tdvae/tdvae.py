@@ -96,11 +96,14 @@ class TDVAE(nn.Module):
 
     def forward(self, x, t1, t2):
         # pre-precess image x
-        processed_x = self.process_x(x)  # TODO make sure max x length is t2 + 1
+        processed_x = self.process_x(x)  # max x length is max(t2) + 1
 
         # aggregate the belief b  # XXX should each stochastic layer receive the entire b (all layers)?
         b = self.b_rnn(processed_x)  # size: bs, time, layers, dim
-        b1, b2 = b[:, t1], b[:, t2]  # sizes: bs, layers, dim  TODO element-wise indexing, needs batched times
+
+        # Element-wise indexing. sizes: bs, layers, dim
+        b1 = torch.gather(b, 1, t1[:, None, None].expand(-1, -1, b.size(2)))
+        b2 = torch.gather(b, 1, t2[:, None, None].expand(-1, -1, b.size(2)))
 
         # q_B(z2 | b2)
         qb_z2_b2_mus, qb_z2_b2_logvars, qb_z2_b2s = [], [], []
