@@ -10,9 +10,8 @@ from ..basetdvae import BaseTDVAE
 
 
 class DBlock(nn.Module):
-    """ A basic building block for parametralize a normal distribution.
-    It is corresponding to the D operation in the reference Appendix.
-    """
+    """ A basic building block for computing parameters of a normal distribution.
+    Corresponds to D in the appendix."""
 
     def __init__(self, input_size, hidden_size, output_size):
         super().__init__()
@@ -46,9 +45,6 @@ class PreProcess(nn.Module):
 
 class Decoder(nn.Module):
     """ The decoder layer converting state to observation.
-    Because the observation is MNIST image whose elements are values
-    between 0 and 1, the output of this layer are probabilities of
-    elements being 1.
     """
 
     def __init__(self, z_size, hidden_size, x_size):
@@ -76,25 +72,20 @@ class TDVAE(nn.Module):
         b_size = b_size
         z_size = z_size
 
-        # input pre-process layer
+        # Input pre-process layer
         self.process_x = PreProcess(x_size, processed_x_size)
 
         # Multilayer LSTM for aggregating belief states
         self.b_rnn = ops.MultilayerLSTM(input_size=processed_x_size, hidden_size=b_size, layers=layers,
                                         every_layer_input=True, use_previous_higher=True)
 
-        # Two layer state model is used. Sampling is done by sampling
-        # higher layer first.
-        # belief to state (b to z)
-        # (this is corresponding to P_B distribution in the reference;
-        # weights are shared across time but not across layers.)
+        # Multilayer state model is used. Sampling is done by sampling higher layers first.
         self.z_b = nn.ModuleList([DBlock(b_size + (z_size if layer < layers - 1 else 0), 50, z_size)
                                   for layer in range(layers)])
 
         # Given belief and state at time t2, infer the state at time t1
         self.z_z_b = nn.ModuleList([DBlock(b_size + layers * z_size + (z_size if layer < layers - 1 else 0), 50, z_size)
                                     for layer in range(layers)])
-
 
         # Given the state at time t1, model state at time t2 through state transition
         self.z_z = nn.ModuleList([DBlock(layers * z_size + (z_size if layer < layers - 1 else 0), 50, z_size)
