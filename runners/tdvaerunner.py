@@ -2,6 +2,8 @@ import collections
 
 import numpy as np
 
+from pylego import misc
+
 from models.basetdvae import BaseTDVAE
 from .basemnist import MovingMNISTBaseRunner
 
@@ -26,7 +28,27 @@ class TDVAERunner(MovingMNISTBaseRunner):
                                         ('sampled_kl_div_qb_pt', sampled_kl_div_qb_pt.item()),
                                         ('bce_optimal', bce_optimal.item())])
 
-    def post_epoch_visualize(self, epoch, split):  # TODO
+    def post_epoch_visualize(self, epoch, split):
         if split != 'train':
             print('* Visualizing', split)
-            print('* Visualizations saved.')
+            t, n = 10, 5
+            bs = min(self.batch_size, 16)
+            batch = next(self.reader.iter_batches(split, bs, shuffle=True, partial_batching=True, threads=self.threads,
+                                                  max_batches=1))
+            batch = batch[:, :t + 1]
+            data = self.model.prepare_batch([batch, t, n], visualize=True)
+
+            out = self.model.run_batch(data, visualize=True)
+
+            batch = batch.numpy()
+            out = out.cpu().numpy()
+            vis_data = np.concatenate([batch, out], axis=1)
+            bs, seq_len = vis_data.shape[:2]
+            vis_data = vis_data.reshape([bs * seq_len, 1, 28, 28])
+
+            if split == 'test':
+                fname = self.flags.log_dir + '/test.png'
+            else:
+                fname = self.flags.log_dir + '/val%03d.png' % epoch
+            misc.save_comparison_grid(fname, vis_data, desired_aspect=seq_len/bs, border_shade=1.0)
+            print('* Visualizations saved to', fname)

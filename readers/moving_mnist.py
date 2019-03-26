@@ -23,6 +23,7 @@ class MovingMNISTDataset(datasets.MNIST):
             tmp = np.random.rand(28, 28) * 255
             image = tmp <= image
         image = image.astype(np.float32)
+        image = np.roll(image, np.random.randint(28), 1)  # start with a random roll
 
         # randomly choose a direction and generate a sequence of images that move in the chosen direction
         direction = np.random.choice(2)

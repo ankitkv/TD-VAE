@@ -173,12 +173,12 @@ class TDVAE(nn.Module):
         return (qs_z1_z2_b1_mu, qs_z1_z2_b1_logvar, pb_z1_b1_mu, pb_z1_b1_logvar, qb_z2_b2_mu, qb_z2_b2_logvar,
                 qb_z2_b2, pt_z2_z1_mu, pt_z2_z1_logvar, pd_x2_z2)
 
-    def rollout(self, x, t1, t2):  # TODO call from visualize
+    def visualize(self, x, t, n):
         # pre-precess image x
-        processed_x = self.process_x(x)  # TODO make sure max x length is t2 + 1
+        processed_x = self.process_x(x)  # x length is t + 1
 
         # aggregate the belief b  # XXX should each stochastic layer receive the entire b (all layers)?
-        b = self.b_rnn(processed_x)[:, t1]  # size: bs, time, layers, dim
+        b = self.b_rnn(processed_x)[:, t]  # size: bs, time, layers, dim
 
         # compute z from b
         p_z_bs = []
@@ -193,7 +193,7 @@ class TDVAE(nn.Module):
         z = torch.cat(p_z_bs, dim=1)
         rollout_x = []
 
-        for _ in range(t2 - t1):
+        for _ in range(n):
             next_z = []
             for layer in range(self.layers - 1, -1, -1):  # TODO optionally condition n
                 if layer == self.layers - 1:
