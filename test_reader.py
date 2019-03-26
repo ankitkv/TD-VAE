@@ -4,7 +4,7 @@ from readers.moving_mnist import MovingMNISTReader
 
 
 if __name__ == '__main__':
-    reader = MovingMNISTReader()
+    reader = MovingMNISTReader('data/MNIST')
     for i, batch in enumerate(reader.iter_batches('train', 4, max_batches=5)):
         print(batch.size())
         if i < 3:

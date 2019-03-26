@@ -216,7 +216,8 @@ class TDVAE(nn.Module):
 class TDVAEModel(BaseTDVAE):
 
     def __init__(self, flags, *args, **kwargs):
-        super().__init__(TDVAE(), flags, *args, **kwargs)  # TODO init arguments
+        # XXX hardcoded for moving MNIST
+        super().__init__(TDVAE(28 * 28, 28 * 28, flags.b_size, flags.z_size, flags.layers), flags, *args, **kwargs)
 
     def loss_function(self, forward_ret, labels=None):
         x2 = labels

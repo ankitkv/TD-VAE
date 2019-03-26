@@ -10,8 +10,8 @@ from pylego.reader import DatasetReader
 
 class MovingMNISTDataset(datasets.MNIST):
 
-    def __init__(self, train, seq_len, binarize):
-        super().__init__('data/MNIST', train=train, download=True)
+    def __init__(self, data_path, train, seq_len, binarize):
+        super().__init__(data_path, train=train, download=True)
         self.seq_len = seq_len
         self.binarize = binarize
 
@@ -40,9 +40,9 @@ class MovingMNISTDataset(datasets.MNIST):
 
 class MovingMNISTReader(DatasetReader):
 
-    def __init__(self, seq_len=20, binarize=True):
-        train_dataset = MovingMNISTDataset(True, seq_len, binarize)
-        test_dataset = MovingMNISTDataset(False, seq_len, binarize)
+    def __init__(self, data_path, seq_len=20, binarize=True):
+        train_dataset = MovingMNISTDataset(data_path, True, seq_len, binarize)
+        test_dataset = MovingMNISTDataset(data_path, False, seq_len, binarize)
 
         val_size = int(0.1 * len(train_dataset))
         train_size = len(train_dataset) - val_size
