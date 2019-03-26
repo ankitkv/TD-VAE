@@ -1,3 +1,5 @@
+"""Some parts adapted from the TD-VAE code by Xinqiang Ding <xqding@umich.edu>."""
+
 import numpy as np
 import torch
 from torch.utils import data

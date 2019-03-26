@@ -1,4 +1,4 @@
-"""Adapted from the original code by Xinqiang Ding <xqding@umich.edu>."""
+"""Some parts adapted from the TD-VAE code by Xinqiang Ding <xqding@umich.edu>."""
 
 import torch
 from torch import nn
