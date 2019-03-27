@@ -98,7 +98,7 @@ class TDVAE(nn.Module):
         # pre-process image x
         processed_x = self.process_x(x)  # max x length is max(t2) + 1
 
-        # aggregate the belief b  # XXX should each stochastic layer receive the entire b (all layers)?
+        # aggregate the belief b
         b = self.b_rnn(processed_x)  # size: bs, time, layers, dim
 
         # Element-wise indexing. sizes: bs, layers, dim
@@ -177,7 +177,7 @@ class TDVAE(nn.Module):
         # pre-process image x
         processed_x = self.process_x(x)  # x length is t + 1
 
-        # aggregate the belief b  # XXX should each stochastic layer receive the entire b (all layers)?
+        # aggregate the belief b
         b = self.b_rnn(processed_x)[:, t]  # size: bs, time, layers, dim
 
         # compute z from b
