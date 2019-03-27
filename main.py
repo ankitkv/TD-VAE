@@ -22,6 +22,7 @@ if __name__ == '__main__':
     arg(parser, 'grad_norm', type=float, default=5.0, help='gradient norm clipping (-1 to disable)')
     arg(parser, 'seq_len', type=int, default=20, help='sequence length')
     arg(parser, 'batch_size', type=int, default=64, help='batch size')
+    arg(parser, 'samples_per_seq', type=int, default=16, help='(t1, t2) samples per input sequence')
     arg(parser, 'b_size', type=int, default=50, help='belief size')
     arg(parser, 'z_size', type=int, default=8, help='state size')
     arg(parser, 'layers', type=int, default=2, help='number of layers')

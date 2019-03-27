@@ -94,12 +94,19 @@ class TDVAE(nn.Module):
         # state to observation
         self.x_z = Decoder(layers * z_size, 200, x_size)
 
-    def forward(self, x, t1, t2):
+    def forward(self, x):
         # pre-process image x
         processed_x = self.process_x(x)  # max x length is max(t2) + 1
 
         # aggregate the belief b
         b = self.b_rnn(processed_x)  # size: bs, time, layers, dim
+
+        # replicate input and b multiple times
+        x = x[None, ...].expand(self.flags.samples_per_seq, -1, -1, -1).view(-1, *x.size())
+        b = b[None, ...].expand(self.flags.samples_per_seq, -1, -1, -1, -1).view(-1, *b.size())
+
+        t1 = torch.randint(0, self.flags.seq_len - self.flags.t_diff_max, (b.size(0),))
+        t2 = t1 + torch.randint(self.flags.t_diff_min, self.flags.t_diff_max + 1, (b.size(0),))
 
         # Element-wise indexing. sizes: bs, layers, dim
         b1 = torch.gather(b, 1, t1[:, None, None, None].expand(-1, -1, b.size(2), b.size(3))).squeeze(1)
@@ -170,7 +177,7 @@ class TDVAE(nn.Module):
         # p_D(x2 | z2)
         pd_x2_z2 = self.x_z(qb_z2_b2)
 
-        return (qs_z1_z2_b1_mu, qs_z1_z2_b1_logvar, pb_z1_b1_mu, pb_z1_b1_logvar, qb_z2_b2_mu, qb_z2_b2_logvar,
+        return (x, t2, qs_z1_z2_b1_mu, qs_z1_z2_b1_logvar, pb_z1_b1_mu, pb_z1_b1_logvar, qb_z2_b2_mu, qb_z2_b2_logvar,
                 qb_z2_b2, pt_z2_z1_mu, pt_z2_z1_logvar, pd_x2_z2)
 
     def visualize(self, x, t, n):
@@ -216,9 +223,9 @@ class TDVAEModel(BaseTDVAE):
         super().__init__(TDVAE(28 * 28, 28 * 28, flags.b_size, flags.z_size, flags.layers), flags, *args, **kwargs)
 
     def loss_function(self, forward_ret, labels=None):
-        x2 = labels
-        (qs_z1_z2_b1_mu, qs_z1_z2_b1_logvar, pb_z1_b1_mu, pb_z1_b1_logvar, qb_z2_b2_mu, qb_z2_b2_logvar, qb_z2_b2,
-         pt_z2_z1_mu, pt_z2_z1_logvar, pd_x2_z2) = forward_ret
+        (x, t2, qs_z1_z2_b1_mu, qs_z1_z2_b1_logvar, pb_z1_b1_mu, pb_z1_b1_logvar, qb_z2_b2_mu, qb_z2_b2_logvar,
+         qb_z2_b2, pt_z2_z1_mu, pt_z2_z1_logvar, pd_x2_z2) = forward_ret
+        x2 = torch.gather(x, 1, t2[:, None, None].expand(-1, -1, x.size(2))).squeeze(1)
 
         batch_size = x2.size(0)
 
