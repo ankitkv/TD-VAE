@@ -32,7 +32,7 @@ class TDVAERunner(MovingMNISTBaseRunner):
         batch = self.model.prepare_batch(batch[:, :t + 1])
         out = self.model.run_batch([batch, t, n], visualize=True)
 
-        batch = batch.numpy()
+        batch = batch.cpu().numpy()
         out = out.cpu().numpy()
         vis_data = np.concatenate([batch, out], axis=1)
         bs, seq_len = vis_data.shape[:2]

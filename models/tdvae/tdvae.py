@@ -64,9 +64,13 @@ class TDVAE(nn.Module):
     """ The full TD-VAE model with jumpy prediction.
     """
 
-    def __init__(self, x_size, processed_x_size, b_size, z_size, layers):
+    def __init__(self, x_size, processed_x_size, b_size, z_size, layers, samples_per_seq, t_diff_min, t_diff_max):
         super().__init__()
         self.layers = layers
+        self.samples_per_seq = samples_per_seq
+        self.t_diff_min = t_diff_min
+        self.t_diff_max = t_diff_max
+
         x_size = x_size
         processed_x_size = processed_x_size
         b_size = b_size
@@ -84,12 +88,12 @@ class TDVAE(nn.Module):
                                   for layer in range(layers)])
 
         # Given belief and state at time t2, infer the state at time t1
-        self.z_z_b = nn.ModuleList([DBlock(b_size + layers * z_size + (z_size if layer < layers - 1 else 0), 50, z_size)
-                                    for layer in range(layers)])
+        self.z1_z2_b = nn.ModuleList([DBlock(b_size + layers * z_size + (z_size if layer < layers - 1 else 0), 50, z_size)
+                                      for layer in range(layers)])
 
         # Given the state at time t1, model state at time t2 through state transition
-        self.z_z = nn.ModuleList([DBlock(layers * z_size + (z_size if layer < layers - 1 else 0), 50, z_size)
-                                  for layer in range(layers)])
+        self.z2_z1 = nn.ModuleList([DBlock(layers * z_size + (z_size if layer < layers - 1 else 0), 50, z_size)
+                                    for layer in range(layers)])
 
         # state to observation
         self.x_z = Decoder(layers * z_size, 200, x_size)
@@ -101,16 +105,17 @@ class TDVAE(nn.Module):
         # aggregate the belief b
         b = self.b_rnn(processed_x)  # size: bs, time, layers, dim
 
-        # replicate input and b multiple times
-        x = x[None, ...].expand(self.flags.samples_per_seq, -1, -1, -1).view(-1, *x.size())
-        b = b[None, ...].expand(self.flags.samples_per_seq, -1, -1, -1, -1).view(-1, *b.size())
+        # replicate b multiple times
+        b = b[None, ...].expand(self.samples_per_seq, -1, -1, -1, -1)  # size: copy, bs, time, layers, dim
 
-        t1 = torch.randint(0, self.flags.seq_len - self.flags.t_diff_max, (b.size(0),))
-        t2 = t1 + torch.randint(self.flags.t_diff_min, self.flags.t_diff_max + 1, (b.size(0),))
+        t1 = torch.randint(0, x.size(1) - self.t_diff_max, (b.size(0), b.size(1)), device=b.device)
+        t2 = t1 + torch.randint(self.t_diff_min, self.t_diff_max + 1, (b.size(0), b.size(1)), device=b.device)
 
         # Element-wise indexing. sizes: bs, layers, dim
-        b1 = torch.gather(b, 1, t1[:, None, None, None].expand(-1, -1, b.size(2), b.size(3))).squeeze(1)
-        b2 = torch.gather(b, 1, t2[:, None, None, None].expand(-1, -1, b.size(2), b.size(3))).squeeze(1)
+        b1 = torch.gather(b, 2, t1[..., None, None, None].expand(-1, -1, -1, b.size(3), b.size(4))).view(
+            -1, b.size(3), b.size(4))
+        b2 = torch.gather(b, 2, t2[..., None, None, None].expand(-1, -1, -1, b.size(3), b.size(4))).view(
+            -1, b.size(3), b.size(4))
 
         # q_B(z2 | b2)
         qb_z2_b2_mus, qb_z2_b2_logvars, qb_z2_b2s = [], [], []
@@ -133,10 +138,10 @@ class TDVAE(nn.Module):
         qs_z1_z2_b1_mus, qs_z1_z2_b1_logvars, qs_z1_z2_b1s = [], [], []
         for layer in range(self.layers - 1, -1, -1):  # TODO optionally condition t2 - t1
             if layer == self.layers - 1:
-                qs_z1_z2_b1_mu, qs_z1_z2_b1_logvar = self.z_z_b[layer](torch.cat([qb_z2_b2, b1[:, layer]], dim=1))
+                qs_z1_z2_b1_mu, qs_z1_z2_b1_logvar = self.z1_z2_b[layer](torch.cat([qb_z2_b2, b1[:, layer]], dim=1))
             else:
-                qs_z1_z2_b1_mu, qs_z1_z2_b1_logvar = self.z_z_b[layer](torch.cat([qb_z2_b2, b1[:, layer], qs_z1_z2_b1],
-                                                                                 dim=1))
+                qs_z1_z2_b1_mu, qs_z1_z2_b1_logvar = self.z1_z2_b[layer](torch.cat([qb_z2_b2, b1[:, layer],
+                                                                                    qs_z1_z2_b1], dim=1))
             qs_z1_z2_b1_mus.insert(0, qs_z1_z2_b1_mu)
             qs_z1_z2_b1_logvars.insert(0, qs_z1_z2_b1_logvar)
 
@@ -151,9 +156,9 @@ class TDVAE(nn.Module):
         pt_z2_z1_mus, pt_z2_z1_logvars = [], []
         for layer in range(self.layers - 1, -1, -1):  # TODO optionally condition t2 - t1
             if layer == self.layers - 1:
-                pt_z2_z1_mu, pt_z2_z1_logvar = self.z_z[layer](qs_z1_z2_b1)
+                pt_z2_z1_mu, pt_z2_z1_logvar = self.z2_z1[layer](qs_z1_z2_b1)
             else:
-                pt_z2_z1_mu, pt_z2_z1_logvar = self.z_z[layer](torch.cat([qs_z1_z2_b1, qb_z2_b2s[layer + 1]], dim=1))
+                pt_z2_z1_mu, pt_z2_z1_logvar = self.z2_z1[layer](torch.cat([qs_z1_z2_b1, qb_z2_b2s[layer + 1]], dim=1))
             pt_z2_z1_mus.insert(0, pt_z2_z1_mu)
             pt_z2_z1_logvars.insert(0, pt_z2_z1_logvar)
 
@@ -204,9 +209,9 @@ class TDVAE(nn.Module):
             next_z = []
             for layer in range(self.layers - 1, -1, -1):  # TODO optionally condition n
                 if layer == self.layers - 1:
-                    pt_z2_z1_mu, pt_z2_z1_logvar = self.z_z[layer](z)
+                    pt_z2_z1_mu, pt_z2_z1_logvar = self.z2_z1[layer](z)
                 else:
-                    pt_z2_z1_mu, pt_z2_z1_logvar = self.z_z[layer](torch.cat([z, pt_z2_z1], dim=1))
+                    pt_z2_z1_mu, pt_z2_z1_logvar = self.z2_z1[layer](torch.cat([z, pt_z2_z1], dim=1))
                 pt_z2_z1 = ops.reparameterize_gaussian(pt_z2_z1_mu, pt_z2_z1_logvar, True)
                 next_z.insert(0, pt_z2_z1)
 
@@ -220,13 +225,16 @@ class TDVAEModel(BaseTDVAE):
 
     def __init__(self, flags, *args, **kwargs):
         # XXX hardcoded for moving MNIST
-        super().__init__(TDVAE(28 * 28, 28 * 28, flags.b_size, flags.z_size, flags.layers), flags, *args, **kwargs)
+        super().__init__(TDVAE(28 * 28, 28 * 28, flags.b_size, flags.z_size, flags.layers, flags.samples_per_seq,
+                               flags.t_diff_min, flags.t_diff_max), flags, *args, **kwargs)
 
     def loss_function(self, forward_ret, labels=None):
         (x, t2, qs_z1_z2_b1_mu, qs_z1_z2_b1_logvar, pb_z1_b1_mu, pb_z1_b1_logvar, qb_z2_b2_mu, qb_z2_b2_logvar,
          qb_z2_b2, pt_z2_z1_mu, pt_z2_z1_logvar, pd_x2_z2) = forward_ret
-        x2 = torch.gather(x, 1, t2[:, None, None].expand(-1, -1, x.size(2))).squeeze(1)
 
+        # replicate x multiple times
+        x = x[None, ...].expand(self.flags.samples_per_seq, -1, -1, -1)  # size: copy, bs, time, dim
+        x2 = torch.gather(x, 2, t2[..., None, None].expand(-1, -1, -1, x.size(3))).view(-1, x.size(3))
         batch_size = x2.size(0)
 
         kl_div_qs_pb = ops.kl_div_gaussian(qs_z1_z2_b1_mu, qs_z1_z2_b1_logvar, pb_z1_b1_mu, pb_z1_b1_logvar).mean()
