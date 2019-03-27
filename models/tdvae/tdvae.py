@@ -187,7 +187,7 @@ class TDVAE(nn.Module):
                 p_z_b_mu, p_z_b_logvar = self.z_b[layer](b[:, layer])
             else:
                 p_z_b_mu, p_z_b_logvar = self.z_b[layer](torch.cat([b[:, layer], p_z_b], dim=1))
-            p_z_b = ops.reparameterize_gaussian(p_z_b_mu, p_z_b_logvar, False)
+            p_z_b = ops.reparameterize_gaussian(p_z_b_mu, p_z_b_logvar, True)
             p_z_bs.insert(0, p_z_b)
 
         z = torch.cat(p_z_bs, dim=1)
@@ -200,7 +200,7 @@ class TDVAE(nn.Module):
                     pt_z2_z1_mu, pt_z2_z1_logvar = self.z_z[layer](z)
                 else:
                     pt_z2_z1_mu, pt_z2_z1_logvar = self.z_z[layer](torch.cat([z, pt_z2_z1], dim=1))
-                pt_z2_z1 = ops.reparameterize_gaussian(pt_z2_z1_mu, pt_z2_z1_logvar, False)
+                pt_z2_z1 = ops.reparameterize_gaussian(pt_z2_z1_mu, pt_z2_z1_logvar, True)
                 next_z.insert(0, pt_z2_z1)
 
             z = torch.cat(next_z, dim=1)
