@@ -95,7 +95,7 @@ class TDVAE(nn.Module):
         self.x_z = Decoder(layers * z_size, 200, x_size)
 
     def forward(self, x, t1, t2):
-        # pre-precess image x
+        # pre-process image x
         processed_x = self.process_x(x)  # max x length is max(t2) + 1
 
         # aggregate the belief b  # XXX should each stochastic layer receive the entire b (all layers)?
@@ -174,7 +174,7 @@ class TDVAE(nn.Module):
                 qb_z2_b2, pt_z2_z1_mu, pt_z2_z1_logvar, pd_x2_z2)
 
     def visualize(self, x, t, n):
-        # pre-precess image x
+        # pre-process image x
         processed_x = self.process_x(x)  # x length is t + 1
 
         # aggregate the belief b  # XXX should each stochastic layer receive the entire b (all layers)?
