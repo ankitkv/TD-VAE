@@ -27,7 +27,7 @@ if __name__ == '__main__':
     arg(parser, 'layers', type=int, default=2, help='number of layers')
     arg(parser, 't_diff_min', type=int, default=1, help='minimum time difference t2-t1')
     arg(parser, 't_diff_max', type=int, default=4, help='maximum time difference t2-t1')
-    arg(parser, 'epochs', type=int, default=1000, help='no. of training epochs')
+    arg(parser, 'epochs', type=int, default=50000, help='no. of training epochs')
     arg(parser, 'print_every', type=int, default=50, help='print losses every these many steps')
     arg(parser, 'gpus', type=str, default='0')
     arg(parser, 'threads', type=int, default=-1, help='data processing threads (-1 to determine from CPUs)')
