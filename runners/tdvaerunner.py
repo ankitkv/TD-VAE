@@ -52,3 +52,26 @@ class TDVAERunner(MovingMNISTBaseRunner):
                 fname = self.flags.log_dir + '/val%03d.png' % epoch
             misc.save_comparison_grid(fname, vis_data, desired_aspect=seq_len/bs, border_shade=1.0)
             print('* Visualizations saved to', fname)
+
+        if split == 'test':
+            print('* Generating more visualizations for', split)
+            vis_data = []
+            for t in range(20 - 1):
+                n = 20 - t - 1
+                batch = next(self.reader.iter_batches(split, 1, shuffle=True, partial_batching=True, threads=1,
+                                                      max_batches=1))
+                batch = batch[:, :t + 1]
+                data = self.model.prepare_batch([batch, t, n], visualize=True)
+                out = self.model.run_batch(data, visualize=True)
+
+                batch = batch.numpy()
+                out = out.cpu().numpy()
+                vis_data.append(np.concatenate([batch, out], axis=1))
+
+            vis_data = np.concatenate(vis_data, axis=0)
+            bs, seq_len = vis_data.shape[:2]
+            vis_data = vis_data.reshape([bs * seq_len, 1, 28, 28])
+
+            fname = self.flags.log_dir + '/test_triangle.png'
+            misc.save_comparison_grid(fname, vis_data, desired_aspect=seq_len/bs, border_shade=1.0)
+            print('* More visualizations saved to', fname)
