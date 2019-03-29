@@ -239,13 +239,13 @@ class TDVAEModel(BaseTDVAE):
 
         kl_div_qs_pb = ops.kl_div_gaussian(qs_z1_z2_b1_mu, qs_z1_z2_b1_logvar, pb_z1_b1_mu, pb_z1_b1_logvar).mean()
 
-        sampled_kl_div_qb_pt = (ops.gaussian_log_prob(qb_z2_b2_mu, qb_z2_b2_logvar, qb_z2_b2) -
-                                ops.gaussian_log_prob(pt_z2_z1_mu, pt_z2_z1_logvar, qb_z2_b2)).mean()
+        kl_shift_qb_pt = (ops.gaussian_log_prob(qb_z2_b2_mu, qb_z2_b2_logvar, qb_z2_b2) -
+                          ops.gaussian_log_prob(pt_z2_z1_mu, pt_z2_z1_logvar, qb_z2_b2)).mean()
 
         bce = F.binary_cross_entropy(pd_x2_z2, x2, reduction='sum') / batch_size
         bce_optimal = F.binary_cross_entropy(x2, x2, reduction='sum') / batch_size
         bce_diff = bce - bce_optimal
 
-        loss = bce_diff + kl_div_qs_pb + sampled_kl_div_qb_pt
+        loss = bce_diff + kl_div_qs_pb + kl_shift_qb_pt
 
-        return loss, bce_diff, kl_div_qs_pb, sampled_kl_div_qb_pt, bce_optimal
+        return loss, bce_diff, kl_div_qs_pb, kl_shift_qb_pt, bce_optimal

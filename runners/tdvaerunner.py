@@ -11,18 +11,18 @@ from .basemnist import MovingMNISTBaseRunner
 class TDVAERunner(MovingMNISTBaseRunner):
 
     def __init__(self, flags, *args, **kwargs):
-        super().__init__(flags, BaseTDVAE, ['loss', 'bce_diff', 'kl_div_qs_pb', 'sampled_kl_div_qb_pt'])
+        super().__init__(flags, BaseTDVAE, ['loss', 'bce_diff', 'kl_div_qs_pb', 'kl_shift_qb_pt'])
 
     def run_batch(self, batch, train=False):
         batch = self.model.prepare_batch(batch)
-        loss, bce_diff, kl_div_qs_pb, sampled_kl_div_qb_pt, bce_optimal = self.model.run_loss(batch)
+        loss, bce_diff, kl_div_qs_pb, kl_shift_qb_pt, bce_optimal = self.model.run_loss(batch)
         if train:
             self.model.train(loss, clip_grad_norm=self.flags.grad_norm)
 
         return collections.OrderedDict([('loss', loss.item()),
                                         ('bce_diff', bce_diff.item()),
                                         ('kl_div_qs_pb', kl_div_qs_pb.item()),
-                                        ('sampled_kl_div_qb_pt', sampled_kl_div_qb_pt.item()),
+                                        ('kl_shift_qb_pt', kl_shift_qb_pt.item()),
                                         ('bce_optimal', bce_optimal.item())])
 
     def _visualize_split(self, split, t, n):
