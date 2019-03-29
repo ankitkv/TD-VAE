@@ -103,8 +103,7 @@ class TDVAE(nn.Module):
         t1 = torch.randint(0, x.size(1) - self.t_diff_max, (self.samples_per_seq, x.size(0)), device=x.device)
         t2 = t1 + torch.randint(self.t_diff_min, self.t_diff_max + 1, (self.samples_per_seq, x.size(0)),
                                 device=x.device)
-
-        x = x[:, :t2.max() + 1]
+        # x = x[:, :t2.max() + 1]  # usually not required with big enough batch size
 
         # pre-process image x
         processed_x = self.process_x(x)  # max x length is max(t2) + 1
