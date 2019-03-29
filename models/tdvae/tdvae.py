@@ -88,8 +88,8 @@ class TDVAE(nn.Module):
                                   for layer in range(layers)])
 
         # Given belief and state at time t2, infer the state at time t1
-        self.z1_z2_b = nn.ModuleList([DBlock(b_size + layers * z_size + (z_size if layer < layers - 1 else 0), 50, z_size)
-                                      for layer in range(layers)])
+        self.z1_z2_b1 = nn.ModuleList([DBlock(b_size + layers * z_size + (z_size if layer < layers - 1 else 0), 50,
+                                              z_size) for layer in range(layers)])
 
         # Given the state at time t1, model state at time t2 through state transition
         self.z2_z1 = nn.ModuleList([DBlock(layers * z_size + (z_size if layer < layers - 1 else 0), 50, z_size)
@@ -99,6 +99,13 @@ class TDVAE(nn.Module):
         self.x_z = Decoder(layers * z_size, 200, x_size)
 
     def forward(self, x):
+        # sample t1 and t2
+        t1 = torch.randint(0, x.size(1) - self.t_diff_max, (self.samples_per_seq, x.size(0)), device=x.device)
+        t2 = t1 + torch.randint(self.t_diff_min, self.t_diff_max + 1, (self.samples_per_seq, x.size(0)),
+                                device=x.device)
+
+        x = x[:, :t2.max() + 1]
+
         # pre-process image x
         processed_x = self.process_x(x)  # max x length is max(t2) + 1
 
@@ -107,9 +114,6 @@ class TDVAE(nn.Module):
 
         # replicate b multiple times
         b = b[None, ...].expand(self.samples_per_seq, -1, -1, -1, -1)  # size: copy, bs, time, layers, dim
-
-        t1 = torch.randint(0, x.size(1) - self.t_diff_max, (b.size(0), b.size(1)), device=b.device)
-        t2 = t1 + torch.randint(self.t_diff_min, self.t_diff_max + 1, (b.size(0), b.size(1)), device=b.device)
 
         # Element-wise indexing. sizes: bs, layers, dim
         b1 = torch.gather(b, 2, t1[..., None, None, None].expand(-1, -1, -1, b.size(3), b.size(4))).view(
@@ -138,10 +142,10 @@ class TDVAE(nn.Module):
         qs_z1_z2_b1_mus, qs_z1_z2_b1_logvars, qs_z1_z2_b1s = [], [], []
         for layer in range(self.layers - 1, -1, -1):  # TODO optionally condition t2 - t1
             if layer == self.layers - 1:
-                qs_z1_z2_b1_mu, qs_z1_z2_b1_logvar = self.z1_z2_b[layer](torch.cat([qb_z2_b2, b1[:, layer]], dim=1))
+                qs_z1_z2_b1_mu, qs_z1_z2_b1_logvar = self.z1_z2_b1[layer](torch.cat([qb_z2_b2, b1[:, layer]], dim=1))
             else:
-                qs_z1_z2_b1_mu, qs_z1_z2_b1_logvar = self.z1_z2_b[layer](torch.cat([qb_z2_b2, b1[:, layer],
-                                                                                    qs_z1_z2_b1], dim=1))
+                qs_z1_z2_b1_mu, qs_z1_z2_b1_logvar = self.z1_z2_b1[layer](torch.cat([qb_z2_b2, b1[:, layer],
+                                                                                     qs_z1_z2_b1], dim=1))
             qs_z1_z2_b1_mus.insert(0, qs_z1_z2_b1_mu)
             qs_z1_z2_b1_logvars.insert(0, qs_z1_z2_b1_logvar)
 
