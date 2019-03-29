@@ -243,7 +243,7 @@ class TDVAEModel(BaseTDVAE):
                           ops.gaussian_log_prob(pt_z2_z1_mu, pt_z2_z1_logvar, qb_z2_b2)).mean()
 
         bce = F.binary_cross_entropy(pd_x2_z2, x2, reduction='sum') / batch_size
-        bce_optimal = F.binary_cross_entropy(x2, x2, reduction='sum') / batch_size
+        bce_optimal = F.binary_cross_entropy(x2, x2, reduction='sum').detach() / batch_size
         bce_diff = bce - bce_optimal
 
         loss = bce_diff + kl_div_qs_pb + kl_shift_qb_pt
