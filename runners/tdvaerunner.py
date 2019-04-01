@@ -36,22 +36,22 @@ class TDVAERunner(MovingMNISTBaseRunner):
         out = out.cpu().numpy()
         vis_data = np.concatenate([batch, out], axis=1)
         bs, seq_len = vis_data.shape[:2]
-        return vis_data.reshape([bs * seq_len, 1, 28, 28]), seq_len / bs
+        return vis_data.reshape([bs * seq_len, 1, 28, 28]), (bs, seq_len)
 
     def post_epoch_visualize(self, epoch, split):
         if split != 'train':
             print('* Visualizing', split)
-            vis_data, aspect = self._visualize_split(split, 10, 5)
+            vis_data, rows_cols = self._visualize_split(split, 10, 5)
             if split == 'test':
                 fname = self.flags.log_dir + '/test.png'
             else:
                 fname = self.flags.log_dir + '/val%03d.png' % epoch
-            misc.save_comparison_grid(fname, vis_data, desired_aspect=aspect, border_shade=1.0)
+            misc.save_comparison_grid(fname, vis_data, border_shade=1.0, rows_cols=rows_cols, retain_sequence=True)
             print('* Visualizations saved to', fname)
 
         if split == 'test':
             print('* Generating more visualizations for', split)
-            vis_data, aspect = self._visualize_split(split, 0, 15)
+            vis_data, rows_cols = self._visualize_split(split, 0, 15)
             fname = self.flags.log_dir + '/test_more.png'
-            misc.save_comparison_grid(fname, vis_data, desired_aspect=aspect, border_shade=1.0)
+            misc.save_comparison_grid(fname, vis_data, border_shade=1.0, rows_cols=rows_cols, retain_sequence=True)
             print('* More visualizations saved to', fname)
