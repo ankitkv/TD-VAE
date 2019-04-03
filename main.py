@@ -9,7 +9,7 @@ from runners.tdvaerunner import TDVAERunner
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     arg(parser, 'name', type=str, required=True, help='name of the experiment')
-    arg(parser, 'model', type=str, default='vae.vaemodel', help='model to use')
+    arg(parser, 'model', type=str, default='tdvae.tdvae', help='model to use')
     arg(parser, 'cuda', type=bool, default=True, help='enable CUDA')
     arg(parser, 'load_file', type=str, default='', help='file to load model from')
     arg(parser, 'save_file', type=str, default='model.dat', help='model save file')
