@@ -41,7 +41,7 @@ class TDVAERunner(MovingMNISTBaseRunner):
     def post_epoch_visualize(self, epoch, split):
         if split != 'train':
             print('* Visualizing', split)
-            vis_data, rows_cols = self._visualize_split(split, 10, 5)
+            vis_data, rows_cols = self._visualize_split(split, min(self.flags.seq_len - 1, 10), 5)
             if split == 'test':
                 fname = self.flags.log_dir + '/test.png'
             else:
